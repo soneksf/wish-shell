@@ -10,6 +10,22 @@
 #include "error.h"
 #include "parser.h"
 
+Shell::Shell() : path_{"/bin"} {}
+
+std::string Shell::resolve(const std::string& name) const {
+    for (const auto& dir : path_) {
+        std::string full = dir;
+        if (!full.empty() && full.back() != '/') {
+            full += '/';
+        }
+        full += name;
+        if (access(full.c_str(), X_OK) == 0) {
+            return full;
+        }
+    }
+    return std::string();
+}
+
 void Shell::run_line(const std::string& line) {
     const std::vector<std::string> toks = tokenize(line);
     if (toks.empty()) {
@@ -24,8 +40,16 @@ void Shell::run_line(const std::string& line) {
         exit(0);
     }
 
+    if (toks[0] == "path") {
+        path_.assign(toks.begin() + 1, toks.end());
+        return;
+    }
 
-    const std::string exe = "/bin/" + toks[0];
+    const std::string exe = resolve(toks[0]);
+    if (exe.empty()) {
+        print_error();
+        return;
+    }
 
     fflush(nullptr);
 
