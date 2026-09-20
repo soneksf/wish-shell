@@ -4,11 +4,12 @@
 #include <cstdlib>
 #include <vector>
 
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "error.h"
-#include "parser.h"
 
 Shell::Shell() : path_{"/bin"} {}
 
@@ -16,11 +17,11 @@ bool Shell::is_builtin(const std::string& name) {
     return name == "exit" || name == "cd" || name == "path";
 }
 
-void Shell::run_builtin(const std::vector<std::string>& toks) {
-    const std::string& name = toks[0];
+void Shell::run_builtin(const Command& cmd) {
+    const std::string& name = cmd.argv[0];
 
     if (name == "exit") {
-        if (toks.size() != 1) {
+        if (cmd.argv.size() != 1) {
             print_error();
             return;
         }
@@ -28,18 +29,17 @@ void Shell::run_builtin(const std::vector<std::string>& toks) {
     }
 
     if (name == "cd") {
-        if (toks.size() != 2) {
+        if (cmd.argv.size() != 2) {
             print_error();
             return;
         }
-        if (chdir(toks[1].c_str()) != 0) {
+        if (chdir(cmd.argv[1].c_str()) != 0) {
             print_error();
         }
         return;
     }
 
-
-    path_.assign(toks.begin() + 1, toks.end());
+    path_.assign(cmd.argv.begin() + 1, cmd.argv.end());
 }
 
 std::string Shell::resolve(const std::string& name) const {
@@ -56,18 +56,8 @@ std::string Shell::resolve(const std::string& name) const {
     return std::string();
 }
 
-void Shell::run_line(const std::string& line) {
-    const std::vector<std::string> toks = tokenize(line);
-    if (toks.empty()) {
-        return;
-    }
-
-    if (is_builtin(toks[0])) {
-        run_builtin(toks);
-        return;
-    }
-
-    const std::string exe = resolve(toks[0]);
+void Shell::run_external(const Command& cmd) const {
+    const std::string exe = resolve(cmd.argv[0]);
     if (exe.empty()) {
         print_error();
         return;
@@ -82,9 +72,23 @@ void Shell::run_line(const std::string& line) {
     }
 
     if (pid == 0) {
+        if (!cmd.outfile.empty()) {
+            const int fd = open(cmd.outfile.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
+            if (fd < 0) {
+                print_error();
+                _exit(1);
+            }
+
+            if (dup2(fd, STDOUT_FILENO) < 0 || dup2(fd, STDERR_FILENO) < 0) {
+                print_error();
+                _exit(1);
+            }
+            close(fd);
+        }
+
         std::vector<char*> args;
-        for (const auto& t : toks) {
-            args.push_back(const_cast<char*>(t.c_str()));
+        for (const auto& a : cmd.argv) {
+            args.push_back(const_cast<char*>(a.c_str()));
         }
         args.push_back(nullptr);
 
@@ -95,4 +99,21 @@ void Shell::run_line(const std::string& line) {
     }
 
     waitpid(pid, nullptr, 0);
+}
+
+void Shell::run_line(const std::string& line) {
+    const Command cmd = parse_line(line);
+
+    if (!cmd.valid) {
+        print_error();
+        return;
+    }
+    if (cmd.argv.empty()) {
+        return;
+    }
+    if (is_builtin(cmd.argv[0])) {
+        run_builtin(cmd);
+        return;
+    }
+    run_external(cmd);
 }

@@ -3,7 +3,9 @@
 #include <string>
 #include <vector>
 
-// Етап 4: усі три вбудовані команди — exit, cd, path.
+#include "parser.h"
+
+// Етап 5: перенаправлення stdout і stderr у файл.
 class Shell {
 public:
     Shell();
@@ -13,7 +15,8 @@ private:
     std::vector<std::string> path_;
 
     static bool is_builtin(const std::string& name);
-    void run_builtin(const std::vector<std::string>& toks);
+    void run_builtin(const Command& cmd);
 
     std::string resolve(const std::string& name) const;
+    void run_external(const Command& cmd) const;
 };
