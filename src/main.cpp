@@ -1,3 +1,4 @@
+// Етап 2: цикл читання + виконання команди через клас Shell.
 
 #include <cstdio>
 #include <cstdlib>
@@ -5,9 +6,11 @@
 
 #include <unistd.h>
 
-#include "error.h"
+#include "shell.h"
 
 int main() {
+    Shell shell;
+
     char* line = nullptr;
     size_t cap = 0;
 
@@ -16,18 +19,11 @@ int main() {
         fflush(stdout);
 
         const ssize_t len = getline(&line, &cap, stdin);
-        if (len == -1) {  // EOF (Ctrl+D)
+        if (len == -1) {
             break;
         }
 
-        std::string input(line, static_cast<size_t>(len));
-
-        if (input == "exit\n" || input == "exit") {
-            free(line);
-            exit(0);
-        }
-
-        printf("ви ввели: %s", input.c_str());
+        shell.run_line(std::string(line, static_cast<size_t>(len)));
     }
 
     free(line);
