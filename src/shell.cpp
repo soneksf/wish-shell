@@ -39,6 +39,7 @@ void Shell::run_builtin(const Command& cmd) {
         return;
     }
 
+
     path_.assign(cmd.argv.begin() + 1, cmd.argv.end());
 }
 
@@ -56,11 +57,11 @@ std::string Shell::resolve(const std::string& name) const {
     return std::string();
 }
 
-void Shell::run_external(const Command& cmd) const {
+pid_t Shell::spawn(const Command& cmd) const {
     const std::string exe = resolve(cmd.argv[0]);
     if (exe.empty()) {
         print_error();
-        return;
+        return -1;
     }
 
     fflush(nullptr);
@@ -68,7 +69,7 @@ void Shell::run_external(const Command& cmd) const {
     const pid_t pid = fork();
     if (pid < 0) {
         print_error();
-        return;
+        return -1;
     }
 
     if (pid == 0) {
@@ -87,6 +88,7 @@ void Shell::run_external(const Command& cmd) const {
         }
 
         std::vector<char*> args;
+        args.reserve(cmd.argv.size() + 1);
         for (const auto& a : cmd.argv) {
             args.push_back(const_cast<char*>(a.c_str()));
         }
@@ -94,26 +96,37 @@ void Shell::run_external(const Command& cmd) const {
 
         execv(exe.c_str(), args.data());
 
+
         print_error();
         _exit(1);
     }
 
-    waitpid(pid, nullptr, 0);
+    return pid;
 }
 
 void Shell::run_line(const std::string& line) {
-    const Command cmd = parse_line(line);
+    std::vector<pid_t> children;
 
-    if (!cmd.valid) {
-        print_error();
-        return;
+    for (const auto& cmd : parse_line(line)) {
+        if (!cmd.valid) {
+            print_error();
+            continue;
+        }
+        if (cmd.argv.empty()) {
+            continue;
+        }
+        if (is_builtin(cmd.argv[0])) {
+            run_builtin(cmd);
+            continue;
+        }
+        const pid_t pid = spawn(cmd);
+        if (pid > 0) {
+            children.push_back(pid);
+        }
     }
-    if (cmd.argv.empty()) {
-        return;
+
+
+    for (const pid_t pid : children) {
+        waitpid(pid, nullptr, 0);
     }
-    if (is_builtin(cmd.argv[0])) {
-        run_builtin(cmd);
-        return;
-    }
-    run_external(cmd);
 }
