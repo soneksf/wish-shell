@@ -1,25 +1,40 @@
-// Етап 2: цикл читання + виконання команди через клас Shell.
-
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 
-#include <unistd.h>
-
+#include "error.h"
 #include "shell.h"
 
-int main() {
+int main(int argc, char* argv[]) {
+    FILE* input = stdin;
+    bool interactive = true;
+
+    if (argc > 2) {  // більше одного файлу — фатальна помилка
+        print_error();
+        exit(1);
+    }
+    if (argc == 2) {
+        input = fopen(argv[1], "r");
+        if (input == nullptr) {  // поганий batch-файл — фатальна помилка
+            print_error();
+            exit(1);
+        }
+        interactive = false;
+    }
+
     Shell shell;
 
     char* line = nullptr;
     size_t cap = 0;
 
     while (true) {
-        printf("wish> ");
-        fflush(stdout);
+        if (interactive) {
+            printf("wish> ");
+            fflush(stdout);
+        }
 
-        const ssize_t len = getline(&line, &cap, stdin);
-        if (len == -1) {
+        const ssize_t len = getline(&line, &cap, input);
+        if (len == -1) {  // EOF
             break;
         }
 
@@ -27,5 +42,9 @@ int main() {
     }
 
     free(line);
+    if (!interactive) {
+        fclose(input);
+    }
+
     exit(0);
 }

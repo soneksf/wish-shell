@@ -21,7 +21,7 @@ void Shell::run_builtin(const Command& cmd) {
     const std::string& name = cmd.argv[0];
 
     if (name == "exit") {
-        if (cmd.argv.size() != 1) {
+        if (cmd.argv.size() != 1) {  // exit не приймає аргументів
             print_error();
             return;
         }
@@ -29,7 +29,7 @@ void Shell::run_builtin(const Command& cmd) {
     }
 
     if (name == "cd") {
-        if (cmd.argv.size() != 2) {
+        if (cmd.argv.size() != 2) {  // рівно один аргумент
             print_error();
             return;
         }
@@ -39,7 +39,7 @@ void Shell::run_builtin(const Command& cmd) {
         return;
     }
 
-
+    // path: повністю перезаписує шлях пошуку (0 аргументів => порожній шлях)
     path_.assign(cmd.argv.begin() + 1, cmd.argv.end());
 }
 
@@ -59,12 +59,12 @@ std::string Shell::resolve(const std::string& name) const {
 
 pid_t Shell::spawn(const Command& cmd) const {
     const std::string exe = resolve(cmd.argv[0]);
-    if (exe.empty()) {
+    if (exe.empty()) {  // програму не знайдено у шляху пошуку
         print_error();
         return -1;
     }
 
-    fflush(nullptr);
+    fflush(nullptr);  // щоб буфери батька не продублювалися у нащадку
 
     const pid_t pid = fork();
     if (pid < 0) {
@@ -79,7 +79,7 @@ pid_t Shell::spawn(const Command& cmd) const {
                 print_error();
                 _exit(1);
             }
-
+            // stdout і stderr — обидва у файл (та сама "родзинка" завдання)
             if (dup2(fd, STDOUT_FILENO) < 0 || dup2(fd, STDERR_FILENO) < 0) {
                 print_error();
                 _exit(1);
@@ -96,7 +96,7 @@ pid_t Shell::spawn(const Command& cmd) const {
 
         execv(exe.c_str(), args.data());
 
-
+        // execv повернувся => помилка
         print_error();
         _exit(1);
     }
@@ -125,7 +125,7 @@ void Shell::run_line(const std::string& line) {
         }
     }
 
-
+    // Усі процеси вже запущені — лише тепер чекаємо на завершення.
     for (const pid_t pid : children) {
         waitpid(pid, nullptr, 0);
     }
