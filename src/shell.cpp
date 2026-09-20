@@ -12,6 +12,36 @@
 
 Shell::Shell() : path_{"/bin"} {}
 
+bool Shell::is_builtin(const std::string& name) {
+    return name == "exit" || name == "cd" || name == "path";
+}
+
+void Shell::run_builtin(const std::vector<std::string>& toks) {
+    const std::string& name = toks[0];
+
+    if (name == "exit") {
+        if (toks.size() != 1) {
+            print_error();
+            return;
+        }
+        exit(0);
+    }
+
+    if (name == "cd") {
+        if (toks.size() != 2) {
+            print_error();
+            return;
+        }
+        if (chdir(toks[1].c_str()) != 0) {
+            print_error();
+        }
+        return;
+    }
+
+
+    path_.assign(toks.begin() + 1, toks.end());
+}
+
 std::string Shell::resolve(const std::string& name) const {
     for (const auto& dir : path_) {
         std::string full = dir;
@@ -32,16 +62,8 @@ void Shell::run_line(const std::string& line) {
         return;
     }
 
-    if (toks[0] == "exit") {
-        if (toks.size() != 1) {
-            print_error();
-            return;
-        }
-        exit(0);
-    }
-
-    if (toks[0] == "path") {
-        path_.assign(toks.begin() + 1, toks.end());
+    if (is_builtin(toks[0])) {
+        run_builtin(toks);
         return;
     }
 
